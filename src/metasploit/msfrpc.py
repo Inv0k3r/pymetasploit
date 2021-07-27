@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
-from httplib import HTTPConnection, HTTPSConnection
+from http.client import HTTPConnection, HTTPSConnection
 import ssl
 from numbers import Number
 
-from msgpack import packb, unpackb
+from msgpack import packb, unpackb, loads
 
 __author__ = 'Nadeem Douba'
 __copyright__ = 'Copyright 2012, PyMetasploit Project'
@@ -224,20 +224,29 @@ class MsfRpcClient(object):
 
         Returns : RPC call result
         """
+        
+        # convert bytes dict to string dict (both key and value)
+        def c_msgpackloads(bin):
+            new_d = loads(bin)
+            new_d = {key.decode('utf-8') if isinstance(key, bytes) else key: new_d[key].decode('utf-8') if isinstance(new_d[key], bytes) else new_d[key] for key in new_d}
+            return new_d
+        
         l = [ method ]
         l.extend(args)
         if method == MsfRpcMethod.AuthLogin:
             self.client.request('POST', self.uri, packb(l), self._headers)
             r = self.client.getresponse()
             if r.status == 200:
-                return unpackb(r.read())
+                # return unpackb(r.read())
+                return c_msgpackloads(r.read())
             raise MsfRpcError('An unknown error has occurred while logging in.')
         elif self.authenticated:
             l.insert(1, self.sessionid)
             self.client.request('POST', self.uri, packb(l), self._headers)
             r = self.client.getresponse()
             if r.status == 200:
-                result = unpackb(r.read())
+                # result = unpackb(r.read())
+                result = c_msgpackloads(r.read())
                 if 'error' in result:
                     raise MsfRpcError(result['error_message'])
                 return result
@@ -1350,7 +1359,7 @@ class MsfModule(object):
         """
         All the module options.
         """
-        return self._moptions.keys()
+        return list(self._moptions.keys())
 
     @property
     def required(self):
@@ -1379,7 +1388,7 @@ class MsfModule(object):
         The running (currently set) options for a module. This will raise an error
         if some of the required options are missing.
         """
-        outstanding = set(self.required).difference(self._runopts.keys())
+        outstanding = set(self.required).difference(list(self._runopts.keys()))
         if outstanding:
             raise TypeError('Module missing required parameter: %s' % ', '.join(outstanding))
         return self._runopts
@@ -1461,14 +1470,14 @@ class MsfModule(object):
                             'Invalid payload (%s) for given target (%d).' % (payload.modulename, self.target)
                         )
                     runopts['PAYLOAD'] = payload.modulename
-                    for k, v in payload.runoptions.iteritems():
-                        if v is None or (isinstance(v, basestring) and not v):
+                    for k, v in payload.runoptions.items():
+                        if v is None or (isinstance(v, str) and not v):
                             continue
                         if k not in runopts or runopts[k] is None or \
-                           (isinstance(runopts[k], basestring) and not runopts[k]):
+                           (isinstance(runopts[k], str) and not runopts[k]):
                             runopts[k] = v
 #                    runopts.update(payload.runoptions)
-                elif isinstance(payload, basestring):
+                elif isinstance(payload, str):
                     if payload not in self.payloads:
                         raise ValueError('Invalid payload (%s) for given target (%d).' % (payload, self.target))
                     runopts['PAYLOAD'] = payload
@@ -1506,7 +1515,7 @@ class ExploitModule(MsfModule):
     @target.setter
     def target(self, target):
         if target not in self.targets:
-            raise ValueError('Target must be one of %s' % repr(self.targets.keys()))
+            raise ValueError('Target must be one of %s' % repr(list(self.targets.keys())))
         self._target = target
 
     def targetpayloads(self, t=0):
