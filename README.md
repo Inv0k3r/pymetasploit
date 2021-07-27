@@ -8,6 +8,8 @@ such as msfconsole, msfvenom, etc. Therefore, before you can begin to use this l
 
 # Requirements
 
+**Convert python2 to python3**
+
 Before we begin, you'll need to install the following components:
 
 * **Metasploit:** https://github.com/rapid7/metasploit-framework
